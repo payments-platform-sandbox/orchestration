@@ -1,0 +1,288 @@
+openapi: 3.0.3
+info:
+  title: Moov ACH + Ledger API
+  version: 0.1.0
+servers:
+- url: http://localhost:8083
+paths:
+  /ach/debits:
+    post:
+      operationId: createAchDebit
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AchInstruction'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AchResult'
+          description: Debit created
+        "400":
+          description: Bad request
+      summary: Initiate ACH debit via Moov
+      x-content-type: application/json
+      x-accepts:
+      - application/json
+  /ach/credits:
+    post:
+      operationId: createAchCredit
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AchInstruction'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AchResult'
+          description: Credit created
+        "400":
+          description: Bad request
+      summary: Initiate ACH credit via Moov
+      x-content-type: application/json
+      x-accepts:
+      - application/json
+  /webhooks/moov:
+    post:
+      operationId: receiveMoovWebhook
+      requestBody:
+        content:
+          application/json:
+            schema:
+              additionalProperties: true
+              type: object
+        required: true
+      responses:
+        "204":
+          description: Accepted
+      summary: Receive Moov webhook
+      x-content-type: application/json
+      x-accepts:
+      - application/json
+  /ledger/payments/{paymentId}:
+    get:
+      operationId: getLedgerPayment
+      parameters:
+      - explode: false
+        in: path
+        name: paymentId
+        required: true
+        schema:
+          type: string
+        style: simple
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LedgerView'
+          description: Ledger entries
+        "404":
+          description: Not found
+      summary: Get ledger entries for a payment
+      x-accepts:
+      - application/json
+  /reconciliation/report:
+    get:
+      operationId: getReconciliationReport
+      parameters:
+      - explode: true
+        in: query
+        name: date
+        required: true
+        schema:
+          format: date
+          type: string
+        style: form
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReconciliationReport'
+          description: Report
+      summary: Get reconciliation report for a date
+      x-accepts:
+      - application/json
+components:
+  schemas:
+    Money:
+      example:
+        amountCents: 1
+        currency: USD
+      properties:
+        amountCents:
+          format: int64
+          minimum: 1
+          type: integer
+        currency:
+          example: USD
+          type: string
+      required:
+      - amountCents
+      - currency
+      type: object
+    AchInstruction:
+      example:
+        accountId: accountId
+        amount:
+          amountCents: 1
+          currency: USD
+        paymentId: paymentId
+        counterpartyAccountId: counterpartyAccountId
+        memo: memo
+        direction: DEBIT
+      properties:
+        paymentId:
+          type: string
+        accountId:
+          type: string
+        counterpartyAccountId:
+          type: string
+        amount:
+          $ref: '#/components/schemas/Money'
+        direction:
+          enum:
+          - DEBIT
+          - CREDIT
+          type: string
+        memo:
+          type: string
+      required:
+      - accountId
+      - amount
+      - paymentId
+      type: object
+    AchResult:
+      example:
+        id: id
+        status: PENDING
+      properties:
+        id:
+          type: string
+        status:
+          enum:
+          - PENDING
+          - SUBMITTED
+          - POSTED
+          - FAILED
+          type: string
+      required:
+      - id
+      - status
+      type: object
+    LedgerEntry:
+      example:
+        createdAt: 2000-01-23T04:56:07.000+00:00
+        side: DEBIT
+        amount:
+          amountCents: 1
+          currency: USD
+        paymentId: paymentId
+        entryId: entryId
+        status: RESERVED
+      properties:
+        entryId:
+          type: string
+        paymentId:
+          type: string
+        side:
+          enum:
+          - DEBIT
+          - CREDIT
+          type: string
+        amount:
+          $ref: '#/components/schemas/Money'
+        status:
+          enum:
+          - RESERVED
+          - POSTED
+          - REVERSED
+          type: string
+        createdAt:
+          format: date-time
+          type: string
+      required:
+      - amount
+      - createdAt
+      - entryId
+      - paymentId
+      - side
+      - status
+      type: object
+    LedgerView:
+      example:
+        entries:
+        - createdAt: 2000-01-23T04:56:07.000+00:00
+          side: DEBIT
+          amount:
+            amountCents: 1
+            currency: USD
+          paymentId: paymentId
+          entryId: entryId
+          status: RESERVED
+        - createdAt: 2000-01-23T04:56:07.000+00:00
+          side: DEBIT
+          amount:
+            amountCents: 1
+            currency: USD
+          paymentId: paymentId
+          entryId: entryId
+          status: RESERVED
+        paymentId: paymentId
+        balanced: true
+      properties:
+        paymentId:
+          type: string
+        entries:
+          items:
+            $ref: '#/components/schemas/LedgerEntry'
+          type: array
+        balanced:
+          type: boolean
+      required:
+      - balanced
+      - entries
+      - paymentId
+      type: object
+    ReconciliationMismatch:
+      example:
+        reason: reason
+        paymentId: paymentId
+      properties:
+        paymentId:
+          type: string
+        reason:
+          type: string
+      required:
+      - paymentId
+      - reason
+      type: object
+    ReconciliationReport:
+      example:
+        mismatches:
+        - reason: reason
+          paymentId: paymentId
+        - reason: reason
+          paymentId: paymentId
+        asOfDate: 2000-01-23
+      properties:
+        asOfDate:
+          format: date
+          type: string
+        mismatches:
+          items:
+            $ref: '#/components/schemas/ReconciliationMismatch'
+          type: array
+      required:
+      - asOfDate
+      - mismatches
+      type: object
+
